@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lost & Found</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f5f7;color:#222;font:15px/1.5 Arial,Helvetica,sans-serif}
+a{color:inherit}
+.top{background:#1f3a5f;color:#fff;padding:14px 20px}
+.top div{max-width:1000px;margin:auto;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px}
+.top b{font-size:20px}
+.top span{font-size:13px;opacity:.8}
+.page{max-width:1000px;margin:20px auto;padding:0 16px;display:grid;grid-template-columns:290px 1fr;gap:20px;align-items:start}
+.box{background:#fff;border:1px solid #d5d9df;border-radius:3px}
+aside{position:sticky;top:12px}
+summary{padding:12px 14px;font-weight:bold;cursor:pointer}
+form{padding:0 14px 14px}
+label{display:block;margin-top:10px;font-size:13px;color:#444}
+input,select,textarea{display:block;width:100%;margin-top:3px;padding:7px 8px;font:inherit;border:1px solid #b9c0ca;border-radius:3px;background:#fff}
+input[type=radio]{display:inline;width:auto;margin:0 4px 0 0}
+.radio label{display:inline-block;margin-right:14px;color:#222;font-size:14px}
+button{font:inherit;padding:7px 12px;border:1px solid #b9c0ca;background:#f4f5f7;border-radius:3px;cursor:pointer}
+button:hover{background:#e8ebef}
+button.main{background:#1f3a5f;border-color:#1f3a5f;color:#fff}
+button.main:hover{background:#2a4b7a}
+button.del{color:#b42318}
+.full{width:100%;margin-top:14px}
+.err{color:#b42318;font-size:13px;margin:8px 0 0;min-height:1em}
+#prev{max-width:100%;max-height:120px;margin-top:6px}
+.tools{padding:10px 14px 0}
+.tools input{margin:0 0 10px}
+.tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid #d5d9df}
+.tabs button{border:0;background:none;border-bottom:3px solid transparent;border-radius:0;padding:8px 12px;margin-bottom:-1px}
+.tabs button[aria-pressed=true]{border-bottom-color:#1f3a5f;font-weight:bold}
+ul{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:96px 1fr auto;gap:14px;padding:14px;border-bottom:1px solid #e6e9ed}
+.row:last-child{border-bottom:0}
+.ph{width:96px;height:96px;background:#e9ecf0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#777;text-align:center}
+.ph img{width:100%;height:100%;object-fit:cover}
+h3{margin:0 0 4px;font-size:16px}
+.st{font-size:13px;font-weight:normal;margin-left:6px}
+.lost .st{color:#b42318}.found .st{color:#067647}.returned .st{color:#666}
+.returned h3{color:#666}
+dl{margin:0;font-size:13px;color:#555}
+dl div{display:flex;gap:6px}
+dt{width:56px;color:#888}
+dd{margin:0}
+.bd p{margin:6px 0 0}
+.ct{font-size:13px;color:#1f3a5f}
+.ac{display:flex;flex-direction:column;gap:6px}
+.none{padding:30px 14px;color:#666}
+dialog{border:1px solid #888;border-radius:3px;width:min(400px,92vw);padding:0}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog form{padding:16px}
+dialog h2{margin:0 0 6px;font-size:18px}
+.btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media(max-width:800px){.page{grid-template-columns:1fr}aside{position:static}.row{grid-template-columns:80px 1fr}.ph{width:80px;height:80px}.ac{grid-column:1/-1;flex-direction:row}}
+</style>
+</head>
+<body>
+<div class="top"><div><b>Lost &amp; Found</b><span>Laporan barang hilang dan barang temuan</span></div></div>
+
+<div class="page">
+<aside class="box">
+<details id="det" open>
+<summary>Buat laporan baru</summary>
+<form id="fReport" novalidate>
+  <div class="radio">
+    <label><input type="radio" name="type" value="lost" checked>Barang hilang</label>
+    <label><input type="radio" name="type" value="found">Barang temuan</label>
+  </div>
+  <label>Nama barang<input name="name" maxlength="80"></label>
+  <label>Kategori
+    <select name="category"><option>Dompet dan tas</option><option>Elektronik</option><option>Kunci</option><option>Dokumen dan kartu</option><option>Pakaian dan aksesori</option><option>Lainnya</option></select>
+  </label>
+  <label>Lokasi<input name="location" maxlength="100"></label>
+  <label>Tanggal<input type="date" name="date"></label>
+  <label>Ciri-ciri<textarea name="description" rows="3" maxlength="300"></textarea></label>
+  <label>Kontak (WA atau email)<input name="contact" maxlength="80"></label>
+  <label>Foto (boleh kosong)<input type="file" id="photo" accept="image/*"></label>
+  <img id="prev" alt="" hidden>
+  <p class="err" id="eReport"></p>
+  <button class="main full">Simpan laporan</button>
+</form>
+</details>
+</aside>
+
+<section class="box">
+  <div class="tools"><input id="q" type="search" placeholder="Cari barang atau lokasi" aria-label="Cari"></div>
+  <div class="tabs" id="tabs"></div>
+  <ul id="list"></ul>
+</section>
+</div>
+
+<dialog id="dClaim">
+  <form id="fClaim" novalidate>
+    <h2>Konfirmasi barang kembali</h2>
+    <p id="hint" style="margin:0;font-size:13px;color:#555"></p>
+    <label>Nama<input name="who" maxlength="60"></label>
+    <label>Kontak<input name="contact" maxlength="80"></label>
+    <p class="err" id="eClaim"></p>
+    <div class="btns"><button type="button" id="cancel">Batal</button><button class="main">Simpan</button></div>
+  </form>
+</dialog>
+
+<script>
+const KEY = "lostfound.items.v1";
+const TABS = [["all", "Semua"], ["lost", "Hilang"], ["found", "Temuan"], ["returned", "Sudah kembali"]];
+const LABEL = { lost: "Hilang", found: "Temuan", returned: "Sudah kembali" };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ago = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+const state = (i) => (i.status === "done" ? "returned" : i.type);
+
+let items = [], filter = "all", claimId = null, photo = "";
+
+try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch { items = []; }
+if (!items.length) {
+  items = [
+    { id: 1, type: "lost", name: "Dompet kulit cokelat", category: "Dompet dan tas", location: "Kantin gedung B", date: ago(2), description: "Isi KTM dan kartu ATM.", contact: "0812-0000-0001" },
+    { id: 2, type: "found", name: "Kunci motor Honda", category: "Kunci", location: "Parkiran perpustakaan", date: ago(1), description: "Gantungan kucing warna oranye.", contact: "0812-0000-0002" },
+    { id: 3, type: "found", name: "Earphone putih", category: "Elektronik", location: "Ruang 3.02", date: ago(4), description: "Case retak di pojok.", contact: "budi@example.com" }
+  ];
+  save();
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(items)); }
+  catch { alert("Penyimpanan penuh. Hapus beberapa laporan atau foto."); }
+}
+
+function render() {
+  const q = $("#q").value.trim().toLowerCase();
+  const count = (k) => items.filter((i) => k === "all" || state(i) === k).length;
+  $("#tabs").innerHTML = TABS.map(([k, t]) => `<button data-tab="${k}" aria-pressed="${k === filter}">${t} (${count(k)})</button>`).join("");
+
+  const rows = items
+    .filter((i) => filter === "all" || state(i) === filter)
+    .filter((i) => !q || [i.name, i.location, i.description, i.category].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+
+  $("#list").innerHTML = rows.length ? rows.map(row).join("") : `<li class="none">Belum ada laporan yang cocok.</li>`;
+}
+
+function row(i) {
+  const s = state(i);
+  const claim = i.type === "lost" ? "Saya menemukannya" : "Ini punya saya";
+  return `<li class="row ${s}">
+    <div class="ph">${i.photo ? `<img src="${i.photo}" alt="Foto ${esc(i.name)}">` : "Tanpa foto"}</div>
+    <div class="bd">
+      <h3>${esc(i.name)}<span class="st">${LABEL[s]}</span></h3>
+      <dl>
+        <div><dt>Lokasi</dt><dd>${esc(i.location)}</dd></div>
+        <div><dt>Tanggal</dt><dd>${fmt(i.date)}</dd></div>
+        <div><dt>Jenis</dt><dd>${esc(i.category)}</dd></div>
+      </dl>
+      ${i.description ? `<p>${esc(i.description)}</p>` : ""}
+      <p class="ct">${s === "returned" ? `Dikembalikan ke/oleh ${esc(i.who)} (${esc(i.whoContact)})` : `Kontak: ${esc(i.contact)}`}</p>
+    </div>
+    <div class="ac">
+      ${s === "returned" ? "" : `<button class="main" data-act="claim" data-id="${i.id}">${claim}</button>`}
+      <button class="del" data-act="del" data-id="${i.id}">Hapus</button>
+    </div>
+  </li>`;
+}
+
+$("#tabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) { filter = b.dataset.tab; render(); } };
+$("#q").oninput = render;
+
+$("#photo").onchange = (e) => {
+  photo = ""; $("#prev").hidden = true;
+  const f = e.target.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const r = Math.min(1, 360 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = img.width * r; c.height = img.height * r;
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    photo = c.toDataURL("image/jpeg", 0.7);
+    $("#prev").src = photo; $("#prev").hidden = false;
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+function resetForm() {
+  const f = $("#fReport");
+  f.reset(); photo = ""; $("#prev").hidden = true;
+  f.date.value = ago(0);
+}
+
+$("#fReport").onsubmit = (e) => {
+  e.preventDefault();
+  const f = e.target, v = (n) => f[n].value.trim();
+  if (!v("name") || !v("location") || !v("contact")) { $("#eReport").textContent = "Nama barang, lokasi, dan kontak harus diisi."; return; }
+  if (!f.date.value) { $("#eReport").textContent = "Tanggal harus diisi."; return; }
+  items.push({ id: Date.now(), type: f.type.value, name: v("name"), category: f.category.value, location: v("location"),
+    date: f.date.value, description: v("description"), contact: v("contact"), photo });
+  save(); resetForm(); $("#eReport").textContent = ""; render();
+};
+
+$("#list").onclick = (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const id = Number(b.dataset.id), it = items.find((i) => i.id === id);
+  if (b.dataset.act === "del") {
+    if (confirm(`Hapus laporan "${it.name}"?`)) { items = items.filter((i) => i.id !== id); save(); render(); }
+    return;
+  }
+  claimId = id;
+  $("#hint").textContent = it.type === "lost" ? "Isi data kamu sebagai penemu." : "Isi data kamu sebagai pemilik. Serahkan barang setelah ciri-cirinya cocok.";
+  $("#fClaim").reset(); $("#eClaim").textContent = "";
+  $("#dClaim").showModal();
+};
+
+$("#cancel").onclick = () => $("#dClaim").close();
+$("#fClaim").onsubmit = (e) => {
+  e.preventDefault();
+  const who = e.target.who.value.trim(), contact = e.target.contact.value.trim();
+  if (!who || !contact) { $("#eClaim").textContent = "Nama dan kontak harus diisi."; return; }
+  Object.assign(items.find((i) => i.id === claimId), { status: "done", who, whoContact: contact });
+  save(); $("#dClaim").close(); render();
+};
+
+$("#det").open = innerWidth > 800;
+resetForm();
+render();
+</script>
+</body>
+</html>
