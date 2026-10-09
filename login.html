@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#102748">
+<title>Masuk - Lost &amp; Found</title>
+<style>
+*{box-sizing:border-box}
+body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#102748,#1f3a5f 55%,#37658b);color:#172536;font:15px/1.5 Arial,Helvetica,sans-serif;overflow:hidden}
+.bubbles{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.bubble{position:absolute;bottom:-100px;border:1px solid rgba(255,255,255,.35);border-radius:50%;background:rgba(255,255,255,.12);animation:float-up linear infinite}
+.bubble:nth-child(1){left:8%;width:22px;height:22px;animation-duration:14s}
+.bubble:nth-child(2){left:19%;width:48px;height:48px;animation-duration:19s;animation-delay:2s}
+.bubble:nth-child(3){left:36%;width:16px;height:16px;animation-duration:12s;animation-delay:5s}
+.bubble:nth-child(4){left:54%;width:34px;height:34px;animation-duration:17s;animation-delay:1s}
+.bubble:nth-child(5){left:72%;width:56px;height:56px;animation-duration:21s;animation-delay:4s}
+.bubble:nth-child(6){left:89%;width:25px;height:25px;animation-duration:15s;animation-delay:7s}
+@keyframes float-up{0%{transform:translateY(0) translateX(0);opacity:0}10%{opacity:.8}50%{transform:translateY(-55vh) translateX(24px)}90%{opacity:.65}100%{transform:translateY(-115vh) translateX(-14px);opacity:0}}
+.card{position:relative;width:min(420px,100%);padding:28px;background:rgba(255,255,255,.97);border:1px solid rgba(255,255,255,.7);border-radius:14px;box-shadow:0 20px 60px rgba(4,19,39,.28);animation:card-in .55s ease-out both}
+@keyframes card-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.brand{display:inline-block;margin-bottom:18px;color:#1f3a5f;font-size:14px;font-weight:bold;text-decoration:none}
+h1{margin:0 0 6px;font-size:24px}
+.hint{margin:0 0 18px;color:#596575;font-size:14px}
+label{display:block;margin-top:12px;color:#344054;font-size:13px}
+input{display:block;width:100%;margin-top:5px;padding:11px 12px;border:1px solid #b9c3d0;border-radius:7px;background:#fff;font:inherit}
+input:focus{outline:3px solid rgba(49,104,161,.18);border-color:#3168a1}
+button,.button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 13px;border:1px solid #c5ccd5;border-radius:7px;background:#fff;color:#263445;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}
+button:hover,.button:hover{background:#f2f5f8}
+button.primary{border-color:#1f3a5f;background:#1f3a5f;color:#fff}
+button.primary:hover{background:#294b77}
+button:disabled{opacity:.55;cursor:not-allowed}
+.actions{display:flex;gap:9px;margin-top:20px}
+.actions button{flex:1}
+.error{min-height:1.4em;margin:9px 0 0;color:#b42318;font-size:13px}
+.back{margin-top:17px;color:#526173;font-size:13px;text-align:center}
+.back a{color:#1f3a5f;font-weight:bold}
+@media(max-width:480px){body{padding:16px}.card{padding:22px;border-radius:12px}h1{font-size:22px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="bubbles" aria-hidden="true"><span class="bubble"></span><span class="bubble"></span><span class="bubble"></span><span class="bubble"></span><span class="bubble"></span><span class="bubble"></span></div>
+<main class="card">
+  <a class="brand" href="index.html">← Lost &amp; Found</a>
+  <h1 id="title">Masuk ke akun</h1>
+  <p class="hint" id="hint">Masuk untuk membuat laporan dan mengajukan klaim barang.</p>
+  <form id="authForm" novalidate>
+    <label>Email<input type="email" name="email" autocomplete="email" required></label>
+    <label>Kata sandi<input type="password" name="password" autocomplete="current-password" minlength="6" required></label>
+    <p class="error" id="error" role="alert" aria-live="polite"></p>
+    <div class="actions">
+      <button class="primary" type="submit" id="submit">Masuk</button>
+      <button type="button" id="toggle">Buat akun</button>
+    </div>
+  </form>
+  <p class="back">Hanya ingin melihat laporan? <a href="index.html">Lanjut tanpa masuk</a></p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
+<script>
+const $ = (selector) => document.querySelector(selector);
+const config = window.SUPABASE_CONFIG || {};
+const client = window.supabase && config.url && config.anonKey
+  ? window.supabase.createClient(config.url, config.anonKey)
+  : null;
+let mode = new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login";
+
+function setError(message) {
+  $("#error").textContent = message || "";
+}
+
+function updateMode() {
+  const signup = mode === "signup";
+  $("#title").textContent = signup ? "Buat akun" : "Masuk ke akun";
+  $("#hint").textContent = signup ? "Daftar untuk membuat laporan dan mengajukan klaim barang." : "Masuk untuk membuat laporan dan mengajukan klaim barang.";
+  $("#submit").textContent = signup ? "Daftar" : "Masuk";
+  $("#toggle").textContent = signup ? "Sudah punya akun?" : "Buat akun";
+  $('[name="password"]').autocomplete = signup ? "new-password" : "current-password";
+}
+
+$("#toggle").onclick = () => {
+  mode = mode === "login" ? "signup" : "login";
+  setError("");
+  updateMode();
+};
+
+$("#authForm").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!client) {
+    setError("Login belum tersedia. Admin perlu menghubungkan project Supabase.");
+    return;
+  }
+  const email = event.target.elements.email.value.trim();
+  const password = event.target.elements.password.value;
+  $("#submit").disabled = true;
+  setError("");
+  try {
+    const result = mode === "login"
+      ? await client.auth.signInWithPassword({ email, password })
+      : await client.auth.signUp({ email, password });
+    if (result.error) {
+      setError(result.error.message);
+    } else if (mode === "signup" && !result.data.session) {
+      setError("Akun dibuat. Periksa email untuk konfirmasi sebelum masuk.");
+    } else {
+      location.replace("index.html");
+    }
+  } catch (error) {
+    setError(`Gagal menghubungi Supabase: ${error?.message || String(error)}`);
+  } finally {
+    $("#submit").disabled = false;
+  }
+};
+
+updateMode();
+if (!client) {
+  setError("Login belum tersedia. Admin perlu menghubungkan project Supabase.");
+  $("#submit").disabled = true;
+} else {
+  client.auth.getSession().then(({ data, error }) => {
+    if (error) setError(`Gagal memeriksa sesi: ${error.message}`);
+    else if (data.session) location.replace("index.html");
+  }).catch((error) => setError(`Gagal memeriksa sesi: ${error?.message || String(error)}`));
+}
+</script>
+</body>
+</html>

@@ -1,5 +1,28 @@
  Lost & Found
 
+## Menjalankan web dengan login Supabase
+
+Halaman laporan publik berada di `index.html`. Login dan pendaftaran dipisahkan ke `login.html`; pengguna bisa melihat laporan tanpa masuk.
+
+1. Buat project di Supabase.
+2. Buka **SQL Editor**, lalu jalankan seluruh isi [`database/supabase-schema.sql`](./database/supabase-schema.sql). Jika SQL versi sebelumnya sudah pernah dijalankan, jalankan kembali skrip terbaru ini agar tampilan publik tersedia.
+3. Di **Project Settings → API**, salin Project URL dan publishable key (atau anon key lama) ke [`supabase-config.js`](./supabase-config.js). Key ini memang digunakan browser; jangan pernah menaruh `service_role` key di file web.
+4. Pastikan **Authentication → Providers → Email** aktif. Jika konfirmasi email aktif, pengguna perlu mengonfirmasi email sebelum masuk.
+5. Jalankan situs melalui server lokal atau hosting HTTPS, lalu buka `index.html`. Contoh server PHP lokal: `php -S localhost:8000`, kemudian kunjungi `http://localhost:8000/index.html`. Jangan membuka halaman sebagai `file://`.
+6. Klik **Masuk** atau **Buat akun** untuk membuka halaman login terpisah. Halaman laporan menyediakan tautan untuk kembali tanpa masuk.
+
+Pengunjung dapat melihat dan mencari laporan tanpa masuk. Untuk melaporkan barang atau mengajukan klaim, pengguna perlu masuk atau membuat akun. Data kontak dan pemilik laporan hanya dimuat setelah login; pengunjung umum membaca tampilan publik yang tidak menyertakan data tersebut. Tombol hapus hanya tersedia untuk pemilik laporan. Pengunjung tanpa login melihat daftar diperbarui berkala selama halaman terbuka.
+
+Klaim hanya bisa diajukan oleh pengguna yang masuk terhadap laporan terbuka milik pengguna lain. Klaim yang berhasil menandai laporan sebagai selesai sehingga tidak dapat diklaim ulang. Aturan ini ditegakkan di tampilan dan kebijakan Row Level Security Supabase. Jika skema lama sudah pernah dipasang, jalankan kembali seluruh `database/supabase-schema.sql` untuk memperbarui kebijakan tersebut.
+
+### Unit test aturan bisnis
+
+Lima suite unit test tanpa dependency eksternal tersedia di `tests/unit/`. Buka `tests/unit/index.html` di browser untuk menjalankan semua test. Hasil menampilkan jumlah test lulus dan rincian test yang gagal.
+
+Alamat utama dan folder `pengguna/` diarahkan ke `index.html` agar pengunjung memakai login Supabase. Folder `admin/` masih merupakan halaman PHP/MySQL lama yang terpisah.
+
+Jika memakai halaman PHP/MySQL lama, salin `config/database.example.php` menjadi `config/database.php`, lalu isi kredensial lokal dan password admin. File `config/database.php` tidak dilacak Git.
+
 ### 1. Masalah Nyata yang Akan Diselesaikan
 
 Kehilangan barang di tempat umum sering membuat pemilik kesulitan untuk menemukannya kembali. Informasi mengenai barang yang hilang biasanya hanya disebarkan melalui grup chat, media sosial, atau bertanya secara langsung kepada orang di sekitar lokasi kejadian. Sementara itu, orang yang menemukan barang juga sering tidak mengetahui bagaimana cara mengembalikannya kepada pemilik.

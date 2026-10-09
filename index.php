@@ -1,2 +1,3 @@
 <?php
-header('Location: pengguna/');
+header('Location: index.html');
+exit;
