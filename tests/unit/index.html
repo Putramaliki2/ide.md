@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unit Tests - Lost &amp; Found</title>
+  <style>
+    body{max-width:800px;margin:32px auto;padding:0 16px;font:15px/1.5 Arial,sans-serif;color:#222}
+    .pass{color:#067647}.fail{color:#b42318}li{margin:8px 0}
+  </style>
+</head>
+<body>
+  <h1>Unit Tests - Lost &amp; Found</h1>
+  <p id="summary" role="status">Menjalankan test...</p>
+  <ol id="results"></ol>
+  <script src="../../assets/lostfound-domain.js"></script>
+  <script src="test-harness.js"></script>
+  <script src="report-validation.test.js"></script>
+  <script src="report-search.test.js"></script>
+  <script src="claim-eligibility.test.js"></script>
+  <script src="claim-input-validation.test.js"></script>
+  <script src="report-ownership-status.test.js"></script>
+  <script>TestHarness.finish();</script>
+</body>
+</html>
