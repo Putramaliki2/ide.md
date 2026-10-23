@@ -64,16 +64,29 @@ dd{margin:0}
 .guest-report a:hover{background:#2a4b7a}
 .notice{max-width:968px;margin:12px auto;padding:9px 12px;background:#fff6dd;border:1px solid #e8ce83;border-radius:3px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .notice button{flex:0 0 auto}
+.dashboard{grid-column:2;padding:14px}
+.dashboard h2{margin:0 0 10px;font-size:18px}
+.dashboard h3{margin:16px 0 6px;font-size:15px}
+.dashboard-list{margin:0;padding:0;list-style:none}
+.dashboard-list li{padding:8px 0;border-top:1px solid #e6e9ed}
+.dashboard-list button{margin-left:8px}
+.status{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:12px;background:#eef1f5;color:#44546a;font-size:12px}
+.status.approved,.status.verified{background:#e7f4ec;color:#067647}
+.status.rejected{background:#fdecea;color:#b42318}
+.status.pending{background:#fff6dd;color:#835b00}
+.muted{color:#667085;font-size:13px}
+.top .account a{color:#fff;text-decoration:none;font-size:13px}
+button:disabled{opacity:.55;cursor:wait}
 dialog{border:1px solid #888;border-radius:3px;width:min(400px,92vw);padding:0}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 dialog form{padding:16px}
 dialog h2{margin:0 0 6px;font-size:18px}
 .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-@media(max-width:800px){.page{grid-template-columns:1fr}aside{position:static}.row{grid-template-columns:80px 1fr}.ph{width:80px;height:80px}.ac{grid-column:1/-1;flex-direction:row}}
+@media(max-width:800px){.page{grid-template-columns:1fr}aside{position:static}.dashboard{grid-column:1}.row{grid-template-columns:80px 1fr}.ph{width:80px;height:80px}.ac{grid-column:1/-1;flex-direction:row}}
 </style>
 </head>
 <body>
-<div class="top"><div><b>Lost &amp; Found</b><span>Laporan barang hilang dan barang temuan</span><span class="guest-actions" id="guestActions"><a href="login.html">Masuk</a><a class="main" href="login.html?mode=signup">Buat akun</a></span><span class="account" id="account" hidden><span id="accountEmail"></span><button type="button" id="logout">Keluar</button></span></div></div>
+<div class="top"><div><b>Lost &amp; Found</b><span>Laporan barang hilang dan barang temuan</span><span class="guest-actions" id="guestActions"><a href="login.html">Masuk</a><a class="main" href="login.html?mode=signup">Buat akun</a></span><span class="account" id="account" hidden><span id="accountEmail"></span><a id="adminLink" href="admin.html" hidden>Dashboard admin</a><button type="button" id="logout">Keluar</button></span></div></div>
 <div class="notice" id="notice" role="status" aria-live="polite" hidden><span id="noticeText"></span><button type="button" id="dismissNotice">Tutup</button></div>
 
 <div class="page" id="app">
@@ -100,7 +113,7 @@ dialog h2{margin:0 0 6px;font-size:18px}
   <label>Foto (boleh kosong)<input type="file" id="photo" accept="image/*"></label>
   <img id="prev" alt="" hidden>
   <p class="err" id="eReport"></p>
-  <button class="main full">Simpan laporan</button>
+  <button class="main full" id="saveReport">Simpan laporan</button>
 </form>
 </details>
 </aside>
@@ -108,18 +121,25 @@ dialog h2{margin:0 0 6px;font-size:18px}
 <section class="box">
   <div class="tools"><input id="q" type="search" placeholder="Cari barang atau lokasi" aria-label="Cari"></div>
   <div class="tabs" id="tabs"></div>
-  <ul id="list"></ul>
+  <ul id="list"><li class="none">Memuat laporan…</li></ul>
+</section>
+<section class="box dashboard" id="userDashboard" hidden>
+  <h2>Dashboard saya</h2>
+  <p class="err" id="eDashboard" role="status"></p>
+  <h3>Laporan saya</h3><ul class="dashboard-list" id="myReports"></ul>
+  <h3>Pengajuan klaim saya</h3><ul class="dashboard-list" id="myClaims"></ul>
+  <h3>Klaim atas laporan saya</h3><ul class="dashboard-list" id="receivedClaims"></ul>
 </section>
 </div>
 
 <dialog id="dClaim">
   <form id="fClaim" novalidate>
-    <h2>Konfirmasi barang kembali</h2>
+    <h2>Ajukan klaim</h2>
     <p id="hint" style="margin:0;font-size:13px;color:#555"></p>
     <label>Nama<input name="who" maxlength="60"></label>
     <label>Kontak<input name="contact" maxlength="80"></label>
     <p class="err" id="eClaim"></p>
-    <div class="btns"><button type="button" id="cancel">Batal</button><button class="main">Simpan</button></div>
+    <div class="btns"><button type="button" id="cancel">Batal</button><button class="main" id="submitClaim">Kirim pengajuan</button></div>
   </form>
 </dialog>
 
@@ -135,7 +155,7 @@ const ago = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
 const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 const state = (i) => (i.status === "done" ? "returned" : i.type);
 
-let client = null, user = null, items = [], filter = "all", claimId = null, photo = "", channel = null;
+let client = null, user = null, isAdmin = false, items = [], ownItems = [], pendingClaimIds = new Set(), filter = "all", claimId = null, photo = "", channel = null;
 
 function render() {
   const q = $("#q").value.trim().toLowerCase();
@@ -151,6 +171,7 @@ function render() {
 function row(i) {
   const s = state(i);
   const claim = i.type === "lost" ? "Saya menemukannya" : "Ini punya saya";
+  const pending = pendingClaimIds.has(i.id);
   return `<li class="row ${s}">
     <div class="ph">${i.photo ? `<img src="${i.photo}" alt="Foto ${esc(i.name)}">` : "Tanpa foto"}</div>
     <div class="bd">
@@ -161,10 +182,11 @@ function row(i) {
         <div><dt>Jenis</dt><dd>${esc(i.category)}</dd></div>
       </dl>
       ${i.description ? `<p>${esc(i.description)}</p>` : ""}
-      ${user ? `<p class="ct">${s === "returned" ? `Dikembalikan ke/oleh ${esc(i.who)} (${esc(i.whoContact)})` : `Kontak: ${esc(i.contact)}`}</p>` : ""}
+      ${user && i.userId === user.id && i.contact ? `<p class="ct">Kontak laporan: ${esc(i.contact)}</p>` : ""}
+      ${s === "returned" ? `<p class="ct">Proses klaim telah disetujui admin.</p>` : ""}
     </div>
     <div class="ac">
-      ${LostFoundDomain.canClaim(i, user) ? `<button class="main" data-act="claim" data-id="${esc(i.id)}">${claim}</button>` : !user && s !== "returned" ? `<a class="claim-login" href="login.html">Masuk untuk klaim</a>` : ""}
+      ${LostFoundDomain.canClaim(i, user) && !pending ? `<button class="main" data-act="claim" data-id="${esc(i.id)}">${claim}</button>` : pending ? `<span class="muted">Klaim menunggu</span>` : !user && s !== "returned" ? `<a class="claim-login" href="login.html">Masuk untuk klaim</a>` : ""}
       ${LostFoundDomain.canDeleteReport(i, user) ? `<button class="del" data-act="del" data-id="${esc(i.id)}">Hapus</button>` : ""}
     </div>
   </li>`;
@@ -182,7 +204,7 @@ function mapItem(row) {
   return {
     id: row.id, userId: row.user_id, type: row.type, name: row.name, category: row.category,
     location: row.location, date: row.date, description: row.description, contact: row.contact,
-    status: row.status, who: row.who, whoContact: row.who_contact, photo: row.photo
+    status: row.status, reviewStatus: row.review_status || "verified", photo: row.photo
   };
 }
 
@@ -193,13 +215,20 @@ async function refreshItems() {
       $("#list").innerHTML = `<li class="none">Laporan belum dapat dimuat. Admin perlu menghubungkan project Supabase.</li>`;
       return;
     }
-    const source = user ? "lostfound_items" : "lostfound_public";
-    const { data, error } = await client.from(source).select("*").order("date", { ascending: false }).order("created_at", { ascending: false });
+    const { data, error } = await client.from("lostfound_public").select("*").order("date", { ascending: false }).order("created_at", { ascending: false });
     if (error) {
       $("#list").innerHTML = `<li class="none">Gagal memuat laporan. ${esc(error.message)}</li>`;
       return;
     }
-    items = data.map(mapItem);
+    items = data.map((row) => mapItem({ ...row, review_status: "verified" }));
+    if (user) {
+      const own = await client.from("lostfound_items").select("id,user_id,contact").eq("user_id", user.id);
+      if (own.error) throw own.error;
+      const ownById = new Map(own.data.map((row) => [row.id, row]));
+      items = items.map((item) => ownById.has(item.id)
+        ? { ...item, userId: user.id, contact: ownById.get(item.id).contact }
+        : item);
+    }
     render();
   } catch (error) {
     $("#list").innerHTML = `<li class="none">Gagal memuat laporan. ${esc(errorText(error))}</li>`;
@@ -225,7 +254,10 @@ function subscribeToChanges() {
   channel = client.channel("lostfound-changes")
     .on("postgres_changes", { event: "*", schema: "public", table: "lostfound_items" }, async (payload) => {
       notifyChange(payload);
-      await refreshItems();
+      await Promise.all([refreshItems(), refreshDashboard()]);
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "lostfound_claims" }, async () => {
+      await refreshDashboard();
     })
     .subscribe((status) => {
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -240,15 +272,69 @@ async function syncAuth() {
   $("#guestActions").hidden = loggedIn;
   $("#guestReport").hidden = loggedIn;
   $("#det").hidden = !loggedIn;
+  $("#userDashboard").hidden = !loggedIn;
+  $("#adminLink").hidden = !loggedIn || !isAdmin;
   if (loggedIn) {
     $("#accountEmail").textContent = user.email;
     if (guestRefreshTimer) { clearInterval(guestRefreshTimer); guestRefreshTimer = null; }
+    try {
+      const profile = await client.from("profiles").select("role").eq("user_id", user.id).maybeSingle();
+      if (profile.error) throw profile.error;
+      isAdmin = profile.data?.role === "admin";
+      showError("#eDashboard", "");
+    } catch (error) {
+      isAdmin = false;
+      showError("#eDashboard", `Gagal memeriksa peran akun: ${errorText(error)}`);
+    }
+    $("#adminLink").hidden = !isAdmin;
     await refreshItems();
+    await refreshDashboard();
     subscribeToChanges();
   } else {
+    isAdmin = false;
+    ownItems = [];
+    pendingClaimIds = new Set();
     if (channel) { await client.removeChannel(channel); channel = null; }
     await refreshItems();
     if (!guestRefreshTimer && client) guestRefreshTimer = setInterval(refreshItems, 30000);
+  }
+}
+
+function badge(status) {
+  const labels = { pending: "Menunggu", verified: "Terverifikasi", rejected: "Ditolak", approved: "Disetujui" };
+  return `<span class="status ${esc(status)}">${labels[status] || esc(status)}</span>`;
+}
+
+async function refreshDashboard() {
+  if (!user) return;
+  try {
+    const [reports, myClaims, receivedClaims] = await Promise.all([
+      client.from("lostfound_items").select("id,name,type,date,review_status,status").eq("user_id", user.id).order("created_at", { ascending: false }),
+      client.from("lostfound_claims").select("id,item_id,status,created_at").eq("claimant_id", user.id).order("created_at", { ascending: false }),
+      client.from("lostfound_claims").select("id,item_id,status,name,contact,created_at").order("created_at", { ascending: false })
+    ]);
+    if (reports.error) throw reports.error;
+    if (myClaims.error) throw myClaims.error;
+    if (receivedClaims.error) throw receivedClaims.error;
+    ownItems = reports.data;
+    const ownedIds = new Set(ownItems.map((item) => item.id));
+    const claimItems = new Map(items.map((item) => [item.id, item]));
+    const myClaimsHtml = myClaims.data.map((claim) => {
+      const item = claimItems.get(claim.item_id);
+      return `<li>${esc(item?.name || "Barang")} ${badge(claim.status)}</li>`;
+    });
+    pendingClaimIds = new Set(myClaims.data.filter((claim) => claim.status === "pending").map((claim) => claim.item_id));
+    const received = receivedClaims.data.filter((claim) => ownedIds.has(claim.item_id)).map((claim) =>
+      `<li>${esc(claim.name)} — ${esc(claim.contact)} ${badge(claim.status)}</li>`);
+    $("#myReports").innerHTML = ownItems.length ? ownItems.map((item) =>
+      `<li>${esc(item.name)} ${badge(item.review_status)}${item.status === "done" ? badge("approved") : ""}
+      ${item.review_status === "pending" || item.review_status === "rejected" ? `<button class="del" data-delete-report="${esc(item.id)}">Hapus</button>` : ""}</li>`).join("")
+      : `<li class="muted">Belum ada laporan.</li>`;
+    $("#myClaims").innerHTML = myClaimsHtml.length ? myClaimsHtml.join("") : `<li class="muted">Belum ada pengajuan klaim.</li>`;
+    $("#receivedClaims").innerHTML = received.length ? received.join("") : `<li class="muted">Belum ada klaim atas laporan Anda.</li>`;
+    render();
+  } catch (error) {
+    showError("#eDashboard", `Gagal memuat dashboard: ${errorText(error)}`);
   }
 }
 
@@ -259,13 +345,19 @@ $("#photo").onchange = (e) => {
   photo = ""; $("#prev").hidden = true;
   const f = e.target.files[0];
   if (!f) return;
+  if (!f.type.startsWith("image/") || f.size > 5 * 1024 * 1024) {
+    showError("#eReport", "Pilih file gambar berukuran maksimal 5 MB.");
+    e.target.value = "";
+    return;
+  }
+  showError("#eReport", "");
   const img = new Image();
   img.onload = () => {
     const r = Math.min(1, 360 / Math.max(img.width, img.height));
     const c = document.createElement("canvas");
     c.width = img.width * r; c.height = img.height * r;
     const context = c.getContext("2d");
-    if (!context) { showError("#eReport", "Foto tidak dapat diproses di browser ini."); return; }
+    if (!context) { showError("#eReport", "Foto tidak dapat diproses di browser ini."); URL.revokeObjectURL(img.src); return; }
     context.drawImage(img, 0, 0, c.width, c.height);
     photo = c.toDataURL("image/jpeg", 0.7);
     $("#prev").src = photo; $("#prev").hidden = false;
@@ -302,12 +394,31 @@ $("#fReport").onsubmit = async (e) => {
   };
   if (validationError) { showError("#eReport", reportErrors[validationError]); return; }
   item.user_id = user.id;
+  $("#saveReport").disabled = true;
   try {
     const { error } = await client.from("lostfound_items").insert(item);
     if (error) { showError("#eReport", `Gagal menyimpan laporan: ${error.message}`); return; }
-    resetForm(); showError("#eReport", ""); await refreshItems();
+    resetForm(); showError("#eReport", "Laporan terkirim dan menunggu verifikasi admin.");
+    await refreshItems();
+    await refreshDashboard();
   } catch (error) {
     showError("#eReport", `Gagal menyimpan laporan: ${errorText(error)}`);
+  } finally {
+    $("#saveReport").disabled = false;
+  }
+};
+
+$("#myReports").onclick = async (e) => {
+  const button = e.target.closest("[data-delete-report]");
+  if (!button || !user) return;
+  const report = ownItems.find((item) => item.id === button.dataset.deleteReport);
+  if (!report || !confirm(`Hapus laporan "${report.name}"?`)) return;
+  try {
+    const { error } = await client.from("lostfound_items").delete().eq("id", report.id);
+    if (error) throw error;
+    await Promise.all([refreshItems(), refreshDashboard()]);
+  } catch (error) {
+    showError("#eDashboard", `Gagal menghapus laporan: ${errorText(error)}`);
   }
 };
 
@@ -323,6 +434,7 @@ $("#list").onclick = async (e) => {
         const { error } = await client.from("lostfound_items").delete().eq("id", id);
         if (error) { alert(`Gagal menghapus laporan: ${error.message}`); return; }
         await refreshItems();
+        await refreshDashboard();
       } catch (error) {
         alert(`Gagal menghapus laporan: ${errorText(error)}`);
       }
@@ -335,7 +447,7 @@ $("#list").onclick = async (e) => {
   }
   if (!LostFoundDomain.canClaim(it, user)) { await refreshItems(); return; }
   claimId = id;
-  $("#hint").textContent = it.type === "lost" ? "Isi data kamu sebagai penemu." : "Isi data kamu sebagai pemilik. Serahkan barang setelah ciri-cirinya cocok.";
+  $("#hint").textContent = it.type === "lost" ? "Ajukan diri sebagai penemu. Admin akan meninjau klaim ini." : "Ajukan klaim sebagai pemilik. Admin akan meninjau klaim ini.";
   $("#fClaim").reset(); $("#eClaim").textContent = "";
   $("#dClaim").showModal();
 };
@@ -343,8 +455,8 @@ $("#list").onclick = async (e) => {
 $("#cancel").onclick = () => $("#dClaim").close();
 $("#fClaim").onsubmit = async (e) => {
   e.preventDefault();
-  const who = e.target.elements.who.value.trim(), contact = e.target.elements.contact.value.trim();
-  const validationError = LostFoundDomain.validateClaim({ name: who, contact });
+  const name = e.target.elements.who.value.trim(), contact = e.target.elements.contact.value.trim();
+  const validationError = LostFoundDomain.validateClaim({ name, contact });
   const claimErrors = {
     name_required: "Nama harus diisi.",
     name_too_long: "Nama maksimal 60 karakter.",
@@ -358,18 +470,18 @@ $("#fClaim").onsubmit = async (e) => {
     return;
   }
   try {
-    const { data, error } = await client.from("lostfound_items")
-      .update({ status: "done", who, who_contact: contact })
-      .eq("id", claimId)
-      .eq("status", "open")
-      .neq("user_id", user.id)
-      .select("id")
-      .maybeSingle();
-    if (error) { showError("#eClaim", `Gagal menyimpan perubahan: ${error.message}`); return; }
-    if (!data) { showError("#eClaim", "Laporan sudah diklaim atau tidak tersedia."); await refreshItems(); return; }
-    $("#dClaim").close(); await refreshItems();
+    $("#submitClaim").disabled = true;
+    const { error } = await client.from("lostfound_claims").insert({
+      item_id: claimId, claimant_id: user.id, name, contact, status: "pending"
+    });
+    if (error) { showError("#eClaim", `Gagal mengirim klaim: ${error.message}`); return; }
+    $("#dClaim").close();
+    showError("#eDashboard", "Pengajuan klaim terkirim dan menunggu keputusan admin.");
+    await refreshDashboard();
   } catch (error) {
-    showError("#eClaim", `Gagal menyimpan perubahan: ${errorText(error)}`);
+    showError("#eClaim", `Gagal mengirim klaim: ${errorText(error)}`);
+  } finally {
+    $("#submitClaim").disabled = false;
   }
 };
 
@@ -400,7 +512,7 @@ if (window.supabase && config.url && config.anonKey) {
     if (event === "INITIAL_SESSION") return;
     setTimeout(() => {
       user = session?.user || null;
-      syncAuth();
+      syncAuth().catch((error) => showError("#eDashboard", `Gagal memperbarui sesi: ${errorText(error)}`));
     }, 0);
   });
 } else {

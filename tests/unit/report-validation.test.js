@@ -17,6 +17,7 @@
 
   h.test("jenis laporan selain hilang atau temuan ditolak", () => {
     h.equal(domain.validateReport({ ...validReport, type: "unknown" }), "invalid_type");
+    h.equal(domain.validateReport(null), "invalid_type");
   });
 
   h.test("nama wajib diisi dan maksimal 80 karakter", () => {

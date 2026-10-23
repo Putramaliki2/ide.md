@@ -4,21 +4,26 @@
   const validTypes = ["lost", "found"];
 
   function validateReport(report) {
-    if (!validTypes.includes(report.type)) return "invalid_type";
-    if (!String(report.name || "").trim()) return "name_required";
-    if (report.name.trim().length > 80) return "name_too_long";
-    if (!String(report.category || "").trim()) return "category_required";
-    if (report.category.trim().length > 40) return "category_too_long";
-    if (!String(report.location || "").trim()) return "location_required";
-    if (report.location.trim().length > 100) return "location_too_long";
-    if (!String(report.contact || "").trim()) return "contact_required";
-    if (report.contact.trim().length > 80) return "contact_too_long";
+    if (!report || !validTypes.includes(report.type)) return "invalid_type";
+    const name = String(report.name || "").trim();
+    const category = String(report.category || "").trim();
+    const location = String(report.location || "").trim();
+    const contact = String(report.contact || "").trim();
+    if (!name) return "name_required";
+    if (name.length > 80) return "name_too_long";
+    if (!category) return "category_required";
+    if (category.length > 40) return "category_too_long";
+    if (!location) return "location_required";
+    if (location.length > 100) return "location_too_long";
+    if (!contact) return "contact_required";
+    if (contact.length > 80) return "contact_too_long";
     if (!isValidDate(report.date)) return "invalid_date";
     if (String(report.description || "").length > 300) return "description_too_long";
     return null;
   }
 
   function validateClaim(claim) {
+    if (!claim) return "name_required";
     const name = String(claim.name || "").trim();
     const contact = String(claim.contact || "").trim();
     if (!name) return "name_required";

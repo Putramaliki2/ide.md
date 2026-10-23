@@ -2,6 +2,7 @@
   "use strict";
 
   h.test("nama dan kontak klaim wajib diisi", () => {
+    h.equal(domain.validateClaim(null), "name_required");
     h.equal(domain.validateClaim({ name: " ", contact: "0812" }), "name_required");
     h.equal(domain.validateClaim({ name: "Pemilik", contact: "" }), "contact_required");
   });

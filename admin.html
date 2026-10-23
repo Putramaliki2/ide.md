@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#102748">
+<title>Dashboard Admin - Lost &amp; Found</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f5f7;color:#222;font:15px/1.5 Arial,Helvetica,sans-serif}
+.top{padding:14px 20px;background:#1f3a5f;color:#fff}
+.top-inner{max-width:1100px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.top a{color:#fff}
+main{max-width:1100px;margin:22px auto;padding:0 16px}
+.box{margin-bottom:18px;padding:16px;background:#fff;border:1px solid #d5d9df;border-radius:4px}
+h1{margin:0;font-size:20px}h2{margin:0 0 10px;font-size:18px}
+.stats{display:flex;gap:24px;flex-wrap:wrap}.stats b{display:block;font-size:24px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px;border-bottom:1px solid #e6e9ed;text-align:left;vertical-align:top}
+button{margin:2px;padding:6px 10px;border:1px solid #b9c0ca;border-radius:4px;background:#fff;font:inherit;cursor:pointer}
+button:hover{background:#f2f5f8}button:disabled{opacity:.55;cursor:wait}
+button.approve{border-color:#067647;background:#067647;color:#fff}
+button.reject,.delete{color:#b42318}
+.message{padding:10px;margin-bottom:12px;border:1px solid #e8ce83;background:#fff6dd}
+.message.error{border-color:#f0aaa4;background:#fdecea;color:#8a1c14}
+.empty{color:#667085;padding:12px 0}
+.status{white-space:nowrap}
+.status.pending{color:#835b00}.status.verified,.status.approved{color:#067647}.status.rejected{color:#b42318}
+[hidden]{display:none!important}
+@media(max-width:650px){.top-inner{align-items:flex-start}.box{padding:12px}th,td{padding:7px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner"><h1>Lost &amp; Found — Admin</h1><div><a href="index.html">Halaman utama</a> · <span id="email"></span> <button id="logout" type="button">Keluar</button></div></div></header>
+<main>
+  <p id="message" class="message" role="status">Memeriksa akses admin…</p>
+  <section id="dashboard" hidden>
+    <section class="box stats" aria-label="Ringkasan">
+      <div><b id="pendingReports">0</b>Laporan menunggu</div>
+      <div><b id="pendingClaims">0</b>Klaim menunggu</div>
+      <div><b id="verifiedReports">0</b>Laporan terverifikasi</div>
+    </section>
+    <section class="box">
+      <h2>Verifikasi laporan</h2>
+      <div class="table-wrap"><table><thead><tr><th>Barang</th><th>Jenis / kategori</th><th>Lokasi / tanggal</th><th>Kontak</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="reports"></tbody></table></div>
+    </section>
+    <section class="box">
+      <h2>Pengajuan klaim</h2>
+      <div class="table-wrap"><table><thead><tr><th>Barang</th><th>Pemohon</th><th>Kontak pemohon</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="claims"></tbody></table></div>
+    </section>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
+<script>
+"use strict";
+const $ = (selector) => document.querySelector(selector);
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const labels = { pending: "Menunggu", verified: "Terverifikasi", rejected: "Ditolak", approved: "Disetujui" };
+const badge = (status) => `<span class="status ${escapeHtml(status)}">${labels[status] || escapeHtml(status)}</span>`;
+const config = window.SUPABASE_CONFIG || {};
+const client = window.supabase && config.url && config.anonKey
+  ? window.supabase.createClient(config.url, config.anonKey)
+  : null;
+let reports = [], claims = [];
+
+function setMessage(text, error) {
+  $("#message").textContent = text;
+  $("#message").className = error ? "message error" : "message";
+  $("#message").hidden = !text;
+}
+
+function render() {
+  const byId = new Map(reports.map((report) => [report.id, report]));
+  $("#pendingReports").textContent = reports.filter((report) => report.review_status === "pending").length;
+  $("#pendingClaims").textContent = claims.filter((claim) => claim.status === "pending").length;
+  $("#verifiedReports").textContent = reports.filter((report) => report.review_status === "verified").length;
+  $("#reports").innerHTML = reports.length ? reports.map((report) => `<tr>
+    <td>${escapeHtml(report.name)}<br><small>${escapeHtml(report.description || "Tanpa deskripsi")}</small></td>
+    <td>${report.type === "lost" ? "Hilang" : "Temuan"}<br>${escapeHtml(report.category)}</td>
+    <td>${escapeHtml(report.location)}<br>${escapeHtml(report.date)}</td>
+    <td>${escapeHtml(report.contact)}</td>
+    <td>${badge(report.review_status)}${report.status === "done" ? `<br>${badge("approved")}` : ""}</td>
+    <td>${report.review_status !== "verified" ? `<button class="approve" data-report-action="verify" data-id="${escapeHtml(report.id)}">Verifikasi</button>` : ""}
+      ${report.review_status !== "rejected" ? `<button class="reject" data-report-action="reject" data-id="${escapeHtml(report.id)}">Tolak</button>` : ""}
+      <button class="delete" data-report-action="delete" data-id="${escapeHtml(report.id)}">Hapus</button></td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">Belum ada laporan.</td></tr>`;
+  $("#claims").innerHTML = claims.length ? claims.map((claim) => {
+    const report = byId.get(claim.item_id);
+    return `<tr>
+      <td>${escapeHtml(report?.name || "Laporan dihapus")}<br><small>${report?.type === "lost" ? "Hilang" : report ? "Temuan" : ""}</small></td>
+      <td>${escapeHtml(claim.name)}</td><td>${escapeHtml(claim.contact)}</td><td>${badge(claim.status)}</td>
+      <td>${claim.status === "pending" ? `<button class="approve" data-claim-action="approved" data-id="${escapeHtml(claim.id)}">Setujui</button><button class="reject" data-claim-action="rejected" data-id="${escapeHtml(claim.id)}">Tolak</button>` : ""}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5" class="empty">Belum ada pengajuan klaim.</td></tr>`;
+}
+
+async function loadData() {
+  setMessage("Memuat data admin…");
+  try {
+    const [reportResult, claimResult] = await Promise.all([
+      client.from("lostfound_items").select("*").order("created_at", { ascending: false }),
+      client.from("lostfound_claims").select("*").order("created_at", { ascending: false })
+    ]);
+    if (reportResult.error) throw reportResult.error;
+    if (claimResult.error) throw claimResult.error;
+    reports = reportResult.data;
+    claims = claimResult.data;
+    render();
+    setMessage("");
+  } catch (error) {
+    setMessage(`Gagal memuat data: ${error.message || String(error)}`, true);
+  }
+}
+
+$("#reports").onclick = async (event) => {
+  const button = event.target.closest("[data-report-action]");
+  if (!button) return;
+  const report = reports.find((entry) => entry.id === button.dataset.id);
+  if (!report) return;
+  const action = button.dataset.reportAction;
+  if (action === "delete" && !confirm(`Hapus laporan "${report.name}"?`)) return;
+  button.disabled = true;
+  try {
+    if (action === "delete") {
+      const { error } = await client.from("lostfound_items").delete().eq("id", report.id);
+      if (error) throw error;
+    } else {
+      const { error } = await client.rpc("review_report", {
+        p_report_id: report.id,
+        p_decision: action === "verify" ? "verified" : "rejected"
+      });
+      if (error) throw error;
+    }
+    await loadData();
+  } catch (error) {
+    setMessage(`Gagal mengelola laporan: ${error.message || String(error)}`, true);
+    button.disabled = false;
+  }
+};
+
+$("#claims").onclick = async (event) => {
+  const button = event.target.closest("[data-claim-action]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    const { error } = await client.rpc("review_claim", {
+      p_claim_id: button.dataset.id,
+      p_decision: button.dataset.claimAction
+    });
+    if (error) throw error;
+    await loadData();
+  } catch (error) {
+    setMessage(`Gagal memproses klaim: ${error.message || String(error)}`, true);
+    button.disabled = false;
+  }
+};
+
+$("#logout").onclick = async () => {
+  if (!client) return;
+  const { error } = await client.auth.signOut();
+  if (error) setMessage(`Gagal keluar: ${error.message}`, true);
+  else location.replace("index.html");
+};
+
+async function start() {
+  if (!client) {
+    setMessage("Supabase belum dikonfigurasi. Isi URL dan publishable/anon key di supabase-config.js.", true);
+    return;
+  }
+  try {
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    if (!data.session) {
+      setMessage("Silakan masuk menggunakan akun admin.", true);
+      return;
+    }
+    $("#email").textContent = data.session.user.email || "";
+    const profile = await client.from("profiles").select("role").eq("user_id", data.session.user.id).maybeSingle();
+    if (profile.error) throw profile.error;
+    if (profile.data?.role !== "admin") {
+      setMessage("Akses ditolak. Akun ini bukan admin.", true);
+      return;
+    }
+    $("#dashboard").hidden = false;
+    client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) location.replace("index.html");
+    });
+    await loadData();
+  } catch (error) {
+    setMessage(`Gagal memeriksa akses: ${error.message || String(error)}`, true);
+  }
+}
+start();
+</script>
+</body>
+</html>
